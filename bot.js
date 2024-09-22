@@ -9,40 +9,31 @@ const client = new Client({
 });
 const fs = require('fs');
 const path = require('path');
-const express = require('express');
-const app = express();
-
-app.get('/', (req, res) => {
-  res.send('Bot is running and alive!'); 
-});
-
-const PORT = process.env.PORT || 3000;
-app.listen(PORT, () => {
-  console.log(`Server is running on port ${PORT}`);
-});
 
 const productsFile = path.join(__dirname, 'products.json');
 
-const prefix = '-'; // حط البريفيكس حقك هناw
-const shopbank = '1188561532750143519'; // ايدي الشخص الي تتحول له الفلوس
-const adminRoleId = '1259415918983778366'; // رتبة آدمن يقدر يضيف منتجات، مب شرط يكون ادمن
+const prefix = '-';
+const shopbank = '1188561532750143519';
+const adminRoleId = '1259415918983778366';
 let products = [];
 
 const loadProducts = () => {
   try {
     const data = fs.readFileSync(productsFile, 'utf8');
     products = JSON.parse(data);
-    console.log('Products loaded successfully');
+    console.log('Products loaded successfully:', products);
   } catch (error) {
-    console.log('No existing products file found. Starting with an empty product list.');
+    console.log('No existing products file found or error reading file. Starting with an empty product list.');
     products = [];
   }
 };
 
 const saveProducts = () => {
   fs.writeFileSync(productsFile, JSON.stringify(products, null, 2), 'utf8');
-  console.log('Products saved successfully');
+  console.log('Products saved successfully:', products);
 };
+
+
 
 const calculateExactFee = (desiredAmount) => {
   desiredAmount = parseInt(desiredAmount);
@@ -165,11 +156,16 @@ client.on('interactionCreate', async (interaction) => {
     if (interaction.customId === 'select_product') {
       const index = parseInt(interaction.values[0]);
       const product = products[index];
-
+    
+      if (!product) {
+        await interaction.reply({ content: 'حدث خطأ في اختيار المنتج. الرجاء المحاولة مرة أخرى.', ephemeral: true });
+        return;
+      }
+    
       const { fee, totalAmount } = calculateExactFee(product.price);
-
-      await interaction.reply({ content: `لشراء :${product.name}, المرجوا استخدام هذا الأمر لتحويل المبلغ: \```c ${shopbank} ${totalAmount}\```. يحتوي على ضريبة :${fee} كريديت. سيكون مبلغ الدفع كاملاً${product.price} كريديت.`, ephemeral: true });
-
+    
+      await interaction.reply({ content: `لشراء ${product.name}، المرجوا استخدام هذا الأمر لتحويل المبلغ: \`c ${shopbank} ${totalAmount}\`. يحتوي على ضريبة: ${fee} كريديت. سيكون مبلغ الدفع كاملاً ${product.price} كريديت.`, ephemeral: true });
+    
       const probotId = '282859044593598464';
       const filter = m => m.author.id === probotId;
       const collector = interaction.channel.createMessageCollector({ filter, time: 300000 });
@@ -178,7 +174,7 @@ client.on('interactionCreate', async (interaction) => {
         console.log('Collected message:', m.content);
         const similarityThreshold = 0.3;
         const sampleTransactionMessageEn = `has transferred${product.price} to`;
-        const sampleTransactionMessageAr = `قام بتحويل \`$${product.price}\` لـ`;
+        const sampleTransactionMessageAr = `قام بتحويل \`${product.price}\` لـ`;
         const similarityEn = simpleSimilarity(m.content, sampleTransactionMessageEn);
         const similarityAr = simpleSimilarity(m.content, sampleTransactionMessageAr);
 
@@ -224,10 +220,10 @@ client.on('interactionCreate', async (interaction) => {
       const price = interaction.fields.getTextInputValue('productPrice');
       const description = interaction.fields.getTextInputValue('productDescription');
       const dmMessage = interaction.fields.getTextInputValue('productDMMessage');
-
+    
       products.push({ name, price, description, dmMessage });
       saveProducts();
-
+    
       await interaction.reply({ content: `تمت اضافة المنتج "${name}" للمتجر!.`, ephemeral: true });
     }
   }
